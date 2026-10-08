@@ -22,10 +22,9 @@
 body{margin:0;background:#04070d;min-height:100vh;padding:20px 16px;font-family:var(--kimi-font-sans)}
 .wrap{max-width:880px;margin:0 auto}
 header{margin-bottom:14px}
-header h1{margin:0;font-size:19px;font-weight:500;color:var(--kimi-color-text-primary);letter-spacing:0}
+header h1{margin:0;font-size:19px;font-weight:500;color:var(--kimi-color-text-primary)}
 header p{margin:4px 0 0;font-size:13px;color:var(--kimi-color-text-quaternary)}
 footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);text-align:center}
-
 #hx button,#hx input{font:inherit}
 #hx .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
 #hx .btn{border:1px solid var(--kimi-color-border);background:transparent;color:var(--kimi-color-text-primary);
@@ -42,7 +41,7 @@ footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);te
 #hx .hud{position:absolute;font-size:12px;color:#8b98ad;pointer-events:none;line-height:1.5;font-variant-numeric:tabular-nums}
 #hx .hud b{color:#d7e2f2;font-weight:500}
 #hx .tl{top:10px;left:12px}#hx .tr{top:10px;right:12px;text-align:right}#hx .bl{bottom:10px;left:12px;right:12px}
-#hx .cmd{flex:1;min-width:180px;border:1px solid var(--kimi-color-border);border-radius:10px;padding:7px 12px;
+#hx .cmd{flex:1;min-width:150px;border:1px solid var(--kimi-color-border);border-radius:10px;padding:7px 12px;
   font-size:14px;background:transparent;color:var(--kimi-color-text-primary);outline:none}
 #hx .cmd:focus{border-color:var(--kimi-color-text-primary)}
 #hx .mic.listening{border-color:var(--kimi-color-danger);color:var(--kimi-color-danger)}
@@ -52,7 +51,7 @@ footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);te
 <div class="wrap">
 <header>
   <h1>aether · holo-workspace</h1>
-  <p>hinglish mein bolo ya likho — model ban jayega · drag = orbit · pinch = zoom</p>
+  <p>hinglish mein bolo ya likho — model tab banega jab tum bologe · drag = orbit · pinch = zoom</p>
 </header>
 
 <div id="hx" style="font-family:var(--kimi-font-sans);width:100%;user-select:none">
@@ -72,9 +71,10 @@ footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);te
 <div class="bar" id="partsBar"></div>
 
 <div class="bar">
-  <input class="cmd" id="cmdIn" placeholder='hinglish command — "cube ko ghumao" · "mobius jod do" · "titanium lagao"'>
+  <input class="cmd" id="cmdIn" placeholder='hinglish command likho — "torus banao" · "cube ko ghumao"'>
+  <button class="btn" id="sendBtn">send</button>
   <button class="btn" id="langBtn">voice · hi-IN</button>
-  <button class="btn mic" id="micBtn" title="voice command">bolo</button>
+  <button class="btn mic" id="micBtn" title="voice command">&#127908; bolo</button>
 </div>
 <div class="bar" id="quickBar" style="margin-bottom:0"></div>
 </div>
@@ -133,13 +133,13 @@ function addPart(type,pos){const g=BUILD[type]();
  parts.push({type:type,name:NAMES[type],v:g.v,e:g.e,pos:pos||{x:0,y:0,z:0},s:1,
   spin:0.004+Math.random()*0.004,rot:Math.random()*6,pulse:0});
  renderChips();hudInfo()}
-function removePart(i){if(i<0||i>=parts.length||parts.length<=1)return false;
+function removePart(i){if(i<0||i>=parts.length)return false;
  const nm=parts[i].name;parts.splice(i,1);
  if(sel===i)sel=null;else if(sel>i)sel--;
- renderChips();hudInfo();status(nm+' hata diya');return true}
-function reset(){parts=[];sel=null;mergeAnim=null;mesh='standard';hudInfo();
- addPart('torus',{x:0,y:0,z:0});addPart('mobius',{x:-1.6,y:0.35,z:0});addPart('cube',{x:1.6,y:0.3,z:0});
- status('scene dobara taiyaar · 3 parts load')}
+ renderChips();hudInfo();
+ status(parts.length?nm+' hata diya':'sab hat gaya · workspace khaali');return true}
+function reset(){parts=[];sel=null;mergeAnim=null;mesh='standard';renderChips();hudInfo();
+ status('workspace khaali · "torus banao" bolo ya likho')}
 
 let W=0,H=0,dpr=1;
 function resize(){dpr=Math.min(1.5,window.devicePixelRatio||1);
@@ -176,6 +176,15 @@ function frame(){
    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);
    ctx.moveTo(c[0],c[1]);ctx.lineTo(e2[0],e2[1]);ctx.stroke()}
   ctx.globalAlpha=1;
+  if(parts.length===0){
+   ctx.textAlign='center';
+   ctx.font='500 17px sans-serif';ctx.fillStyle=rgba(0.55);
+   ctx.fillText('khaali workspace',W/2,H/2-14);
+   ctx.font='13px sans-serif';ctx.fillStyle=rgba(0.35);
+   ctx.fillText('"torus banao" · "cube ko ghumao" · "mobius jod do"',W/2,H/2+10);
+   ctx.textAlign='left';
+   $('hudRot').innerHTML='yaw <b>'+((Math.round(yaw*57.3)%360+360)%360)+'°</b> · pitch <b>'+Math.round(pitch*57.3)+'°</b> · zoom <b>'+Math.round(4.6/dist*100)+'%</b>';
+   requestAnimationFrame(frame);return}
   const all=[];
   for(let pi=0;pi<parts.length;pi++){const p=parts[pi];
    const rr=Math.cos(p.rot),ss=Math.sin(p.rot),sc=p.s*(1+0.09*(p.pulse||0));
@@ -217,6 +226,9 @@ function frame(){
  }}
 
 function renderChips(){const bar=$('partsBar');bar.innerHTML='';
+ if(parts.length===0){const s=document.createElement('span');
+  s.style.cssText='font-size:12px;color:var(--kimi-color-text-quaternary)';
+  s.textContent='workspace khaali · "torus banao" se shuru karo';bar.appendChild(s)}
  for(let i=0;i<parts.length;i++){(function(p,i){
   const c=document.createElement('button');c.className='chip'+(i===sel?' sel':'');
   c.innerHTML=p.name+'<span class="x">&#10005;</span>';
@@ -236,7 +248,7 @@ $('resetBtn').onclick=function(){reset()};
 
 function tryMerge(i){
  if(i==null||i<0||!parts[i]){status('pehle part select karo, phir snap');return}
- if(parts.length<2){status('sirf base bacha hai');return}
+ if(parts.length<2){status('jodne ke liye 2 parts chahiye');return}
  if(i===0){status('base layer pehle se anchored hai');return}
  sel=i;
  mergeAnim={pi:i,to:{x:parts[0].pos.x,y:parts[0].pos.y,z:parts[0].pos.z},t:0};
@@ -273,8 +285,8 @@ function runCommand(raw){
  if(/(hatao|hata do|nikaal|nikaalo|udao|delete|हटाओ|हटा|हटाना|हटा दो)/.test(c)){
   const i=findIdx(c);
   if(i>=0){removePart(i);return}
-  if(parts.length>1){removePart(parts.length-1);return}
-  status('hatane ke liye kuch nahi bacha');return}
+  if(parts.length>0){removePart(parts.length-1);return}
+  status('kuch hai hi nahi hatane ko');return}
  if(/(merge|snap|combine|jodo|jod do|jod |mila do|milao|जोड़ो|जोड़|जोड़ दो|मिलाओ|मिला)/.test(c)){
   let i=findIdx(c);if(i<0)i=sel;
   if(i!=null&&i>=0){tryMerge(i)}else status('kaunsa part jodna hai? naam bolo · jaise "mobius jod do"');
@@ -307,6 +319,8 @@ window.__state=function(){return{parts:parts.length,mesh:mesh,dist:Math.round(di
 
 $('cmdIn').addEventListener('keydown',function(e){
  if(e.key==='Enter'&&e.target.value.trim()){runCommand(e.target.value.trim());e.target.value=''}});
+$('sendBtn').onclick=function(){const v=$('cmdIn').value.trim();
+ if(v){runCommand(v);$('cmdIn').value=''}};
 const QUICK=['torus banao','cube ko ghumao','mobius jod do','zoom paas karo','titanium lagao','cube hatao'];
 for(let i=0;i<QUICK.length;i++){(function(q){
  const b=document.createElement('button');b.className='chip';b.textContent=q;
@@ -336,5 +350,4 @@ requestAnimationFrame(frame);
 
 </script>
 </body>
-  </html>
-  
+</html>
