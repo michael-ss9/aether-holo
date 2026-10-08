@@ -51,7 +51,7 @@ footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);te
 <div class="wrap">
 <header>
   <h1>aether · holo-workspace</h1>
-  <p>hinglish mein bolo ya likho — model tab banega jab tum bologe · drag = orbit · pinch = zoom</p>
+  <p>speak or type in hinglish — it understands both · drag = orbit · pinch = zoom</p>
 </header>
 
 <div id="hx" style="font-family:var(--kimi-font-sans);width:100%;user-select:none">
@@ -71,10 +71,10 @@ footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);te
 <div class="bar" id="partsBar"></div>
 
 <div class="bar">
-  <input class="cmd" id="cmdIn" placeholder='hinglish command likho — "torus banao" · "cube ko ghumao"'>
+  <input class="cmd" id="cmdIn" placeholder='command in hinglish or english — "torus banao" · "rotate cube"'>
   <button class="btn" id="sendBtn">send</button>
   <button class="btn" id="langBtn">voice · hi-IN</button>
-  <button class="btn mic" id="micBtn" title="voice command">&#127908; bolo</button>
+  <button class="btn mic" id="micBtn" title="voice command">&#127908; speak</button>
 </div>
 <div class="bar" id="quickBar" style="margin-bottom:0"></div>
 </div>
@@ -137,9 +137,9 @@ function removePart(i){if(i<0||i>=parts.length)return false;
  const nm=parts[i].name;parts.splice(i,1);
  if(sel===i)sel=null;else if(sel>i)sel--;
  renderChips();hudInfo();
- status(parts.length?nm+' hata diya':'sab hat gaya · workspace khaali');return true}
+ status(parts.length?nm+' removed':'all clear · workspace empty');return true}
 function reset(){parts=[];sel=null;mergeAnim=null;mesh='standard';renderChips();hudInfo();
- status('workspace khaali · "torus banao" bolo ya likho')}
+ status('workspace empty · say "torus banao" to begin')}
 
 let W=0,H=0,dpr=1;
 function resize(){dpr=Math.min(1.5,window.devicePixelRatio||1);
@@ -179,7 +179,7 @@ function frame(){
   if(parts.length===0){
    ctx.textAlign='center';
    ctx.font='500 17px sans-serif';ctx.fillStyle=rgba(0.55);
-   ctx.fillText('khaali workspace',W/2,H/2-14);
+   ctx.fillText('empty workspace',W/2,H/2-14);
    ctx.font='13px sans-serif';ctx.fillStyle=rgba(0.35);
    ctx.fillText('"torus banao" · "cube ko ghumao" · "mobius jod do"',W/2,H/2+10);
    ctx.textAlign='left';
@@ -228,36 +228,36 @@ function frame(){
 function renderChips(){const bar=$('partsBar');bar.innerHTML='';
  if(parts.length===0){const s=document.createElement('span');
   s.style.cssText='font-size:12px;color:var(--kimi-color-text-quaternary)';
-  s.textContent='workspace khaali · "torus banao" se shuru karo';bar.appendChild(s)}
+  s.textContent='workspace empty · say "torus banao" to start';bar.appendChild(s)}
  for(let i=0;i<parts.length;i++){(function(p,i){
   const c=document.createElement('button');c.className='chip'+(i===sel?' sel':'');
   c.innerHTML=p.name+'<span class="x">&#10005;</span>';
   c.onclick=function(e){
    if(e.target.classList.contains('x')){removePart(i);return}
    sel=i;mode='move';$('modeBtn').textContent='mode: move';
-   renderChips();status(p.name+' selected · drag karke move karo')};
+   renderChips();status(p.name+' selected · drag to move')};
   bar.appendChild(c)})(parts[i],i)}}
 function hudInfo(){$('hudInfo').innerHTML='parts <b>'+parts.length+'</b> · mesh <b>'+mesh+'</b>'}
 function status(t){$('hudStatus').textContent=t}
 
 $('modeBtn').onclick=function(){mode=mode==='orbit'?'move':'orbit';
  $('modeBtn').textContent='mode: '+mode;
- status(mode==='move'?'move mode · part select karo, phir drag':'orbit mode · drag se view ghumao')};
+ status(mode==='move'?'move mode · select a part, then drag':'orbit mode · drag to rotate')};
 $('snapBtn').onclick=function(){tryMerge(sel)};
 $('resetBtn').onclick=function(){reset()};
 
 function tryMerge(i){
- if(i==null||i<0||!parts[i]){status('pehle part select karo, phir snap');return}
- if(parts.length<2){status('jodne ke liye 2 parts chahiye');return}
- if(i===0){status('base layer pehle se anchored hai');return}
+ if(i==null||i<0||!parts[i]){status('select a part first');return}
+ if(parts.length<2){status('need 2 parts to merge');return}
+ if(i===0){status('base layer already anchored');return}
  sel=i;
  mergeAnim={pi:i,to:{x:parts[0].pos.x,y:parts[0].pos.y,z:parts[0].pos.z},t:0};
- status('snap sequence · '+parts[i].name+' ko '+parts[0].name+' se jod raha hoon')}
+ status('snap sequence · merging '+parts[i].name+' into '+parts[0].name)}
 function tickMerge(dt){
  if(!mergeAnim)return;mergeAnim.t+=dt/650;
  if(mergeAnim.t>=1){const gone=parts.splice(mergeAnim.pi,1)[0];
   parts[0].pulse=1;sel=null;mergeAnim=null;
-  renderChips();hudInfo();status(gone.name+' jud gaya · structural integrity 100%')}}
+  renderChips();hudInfo();status(gone.name+' fused · structural integrity 100%')}}
 let lastT=performance.now();
 (function loop(t){const dt=Math.min(50,t-lastT);lastT=t;tickMerge(dt);
  for(let i=0;i<parts.length;i++){const p=parts[i];
@@ -286,19 +286,19 @@ function runCommand(raw){
   const i=findIdx(c);
   if(i>=0){removePart(i);return}
   if(parts.length>0){removePart(parts.length-1);return}
-  status('kuch hai hi nahi hatane ko');return}
+  status('nothing to remove');return}
  if(/(merge|snap|combine|jodo|jod do|jod |mila do|milao|जोड़ो|जोड़|जोड़ दो|मिलाओ|मिला)/.test(c)){
   let i=findIdx(c);if(i<0)i=sel;
-  if(i!=null&&i>=0){tryMerge(i)}else status('kaunsa part jodna hai? naam bolo · jaise "mobius jod do"');
+  if(i!=null&&i>=0){tryMerge(i)}else status('which part? name it · like "mobius jod do"');
   return}
  if(/(rotate|ghuma|ghumao|spin|घुमाओ|घुमा|घुमाना|घुमा दो)/.test(c)){
   const ax=/ z /.test(c)?'z':/ y /.test(c)?'y':'x';
   for(let i=0;i<parts.length;i++)parts[i].spin*=3;
   setTimeout(function(){for(let i=0;i<parts.length;i++)parts[i].spin/=3},1400);
-  status('assembly '+ax+'-axis pe ghuma di');return}
+  status('rotated assembly on '+ax+'-axis');return}
  if(/(titanium|mesh|material|alloy|टाइटेनियम)/.test(c)){
   mesh=mesh==='titanium'?'standard':'titanium';hudInfo();
-  status(mesh==='titanium'?'titanium alloy mesh laga di':'standard mesh wapas');return}
+  status(mesh==='titanium'?'titanium alloy mesh applied':'standard mesh restored');return}
  if(/(zoom|paas|pass|door|paas karo|दूर|पास|दूर क)/.test(c)){
   const out=/(out|door|दूर|chota|छोटा)/.test(c);
   if(out)dist=Math.min(9,dist*1.3);else dist=Math.max(2.4,dist*0.75);
@@ -306,14 +306,14 @@ function runCommand(raw){
  if(/(select|chuno|चुनो|पकड़ो|pakdo)/.test(c)){
   const i=findIdx(c);
   if(i>=0){sel=i;mode='move';$('modeBtn').textContent='mode: move';renderChips();
-   status(parts[i].name+' selected · drag karke move karo')}
-  else status('kaunsa part? naam bolo');
+   status(parts[i].name+' selected · drag to move')}
+  else status('which part? name it');
   return}
  if(/(banao|bana|bana do|banana|lao|daalo|daal do|add|create|बनाओ|बना|बनाना|बना दो|लाओ|डालो|डाल दो|नया)/.test(c)){
   const t=findAdd(c)||'torus';
   addPart(t,{x:(Math.random()-0.5)*2.6,y:0.3+Math.random()*0.5,z:(Math.random()-0.5)*1.5});
-  status(NAMES[t]+' taiyaar ho gaya');return}
- status('samajh nahi aaya · try: "torus banao" · "cube ko ghumao" · "mobius jod do" · "zoom paas karo"')}
+  status(NAMES[t]+' fabricated into workspace');return}
+ status('did not understand · try: "torus banao" · "cube ko ghumao" · "mobius jod do" · "zoom paas karo"')}
 window.__run=runCommand;
 window.__state=function(){return{parts:parts.length,mesh:mesh,dist:Math.round(dist*100)/100,sel:sel}};
 
@@ -332,22 +332,22 @@ $('langBtn').onclick=function(){vlang=vlang==='hi-IN'?'en-US':'hi-IN';
  $('langBtn').textContent='voice · '+vlang;status('voice language: '+vlang)};
 $('micBtn').onclick=function(){
  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){status('is browser mein voice engine nahi hai · typed command use karo');return}
+ if(!SR){status('voice engine not available in this browser · use typed commands');return}
  try{
   if(!rec){rec=new SR();rec.interimResults=false;
    rec.onresult=function(e){runCommand(e.results[0][0].transcript)};
    rec.onend=function(){listening=false;$('micBtn').classList.remove('listening');$('micBtn').textContent='bolo'};
-   rec.onerror=function(){listening=false;$('micBtn').classList.remove('listening');status('voice input error · dobara try karo')}}
+   rec.onerror=function(){listening=false;$('micBtn').classList.remove('listening');status('voice input error · try again')}}
   rec.lang=vlang;
   if(!listening){rec.start();listening=true;$('micBtn').classList.add('listening');
-   $('micBtn').textContent='sun raha hoon…';status('voice channel khula · boliye')}
+   $('micBtn').textContent='sun raha hoon…';status('voice channel open · speak now')}
   else rec.stop()
- }catch(err){status('voice engine unavailable · typed command use karo')}};
+ }catch(err){status('voice engine unavailable · use typed commands')}};
 
 reset();
 requestAnimationFrame(frame);
 })();
-
 </script>
 </body>
-</html>
+ </html>
+ 
