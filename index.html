@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aether · holo-workspace</title>
+<style>
+:root{
+ --kimi-font-sans:'Segoe UI',system-ui,-apple-system,sans-serif;
+ --kimi-color-text-primary:#e8eef7;
+ --kimi-color-text-secondary:#9aa7ba;
+ --kimi-color-text-quaternary:#5b6879;
+ --kimi-color-border:#1e2a3a;
+ --kimi-color-fill-secondary:#131c29;
+ --kimi-color-bg:#04070d;
+ --kimi-color-danger:#ef4444;
+ --kimi-color-accent:#38bdf8;
+ --t-fast:150ms;
+ --ease-out:ease-out;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#04070d;min-height:100vh;padding:20px 16px;font-family:var(--kimi-font-sans)}
+.wrap{max-width:880px;margin:0 auto}
+header{margin-bottom:14px}
+header h1{margin:0;font-size:19px;font-weight:500;color:var(--kimi-color-text-primary);letter-spacing:0}
+header p{margin:4px 0 0;font-size:13px;color:var(--kimi-color-text-quaternary)}
+footer{margin-top:16px;font-size:12px;color:var(--kimi-color-text-quaternary);text-align:center}
+
+#hx button,#hx input{font:inherit}
+#hx .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+#hx .btn{border:1px solid var(--kimi-color-border);background:transparent;color:var(--kimi-color-text-primary);
+  border-radius:8px;padding:5px 12px;font-size:14px;cursor:pointer;transition:background var(--t-fast) var(--ease-out)}
+#hx .btn:hover{background:var(--kimi-color-fill-secondary)}
+#hx .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--kimi-color-border);border-radius:6px;
+  padding:3px 10px;font-size:13px;color:var(--kimi-color-text-secondary);cursor:pointer;background:transparent}
+#hx .chip.sel{border-color:var(--kimi-color-text-primary);color:var(--kimi-color-text-primary)}
+#hx .chip .x{opacity:0;color:var(--kimi-color-text-quaternary);transition:opacity var(--t-fast)}
+#hx .chip:hover .x{opacity:1}
+#hx .viewport{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--kimi-color-border)}
+#hx canvas{display:block;width:100%;height:380px;touch-action:none;cursor:grab;background:#04070d}
+#hx canvas:active{cursor:grabbing}
+#hx .hud{position:absolute;font-size:12px;color:#8b98ad;pointer-events:none;line-height:1.5;font-variant-numeric:tabular-nums}
+#hx .hud b{color:#d7e2f2;font-weight:500}
+#hx .tl{top:10px;left:12px}#hx .tr{top:10px;right:12px;text-align:right}#hx .bl{bottom:10px;left:12px;right:12px}
+#hx .cmd{flex:1;min-width:180px;border:1px solid var(--kimi-color-border);border-radius:10px;padding:7px 12px;
+  font-size:14px;background:transparent;color:var(--kimi-color-text-primary);outline:none}
+#hx .cmd:focus{border-color:var(--kimi-color-text-primary)}
+#hx .mic.listening{border-color:var(--kimi-color-danger);color:var(--kimi-color-danger)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>aether · holo-workspace</h1>
+  <p>hinglish mein bolo ya likho — model ban jayega · drag = orbit · pinch = zoom</p>
+</header>
+
+<div id="hx" style="font-family:var(--kimi-font-sans);width:100%;user-select:none">
+<div class="bar" style="margin-top:0">
+  <button class="btn" id="modeBtn">mode: orbit</button>
+  <button class="btn" id="snapBtn">snap &amp; combine</button>
+  <button class="btn" id="resetBtn">reset scene</button>
+</div>
+
+<div class="viewport">
+  <canvas id="cv"></canvas>
+  <div class="hud tl" id="hudRot"></div>
+  <div class="hud tr" id="hudInfo"></div>
+  <div class="hud bl" id="hudStatus"></div>
+</div>
+
+<div class="bar" id="partsBar"></div>
+
+<div class="bar">
+  <input class="cmd" id="cmdIn" placeholder='hinglish command — "cube ko ghumao" · "mobius jod do" · "titanium lagao"'>
+  <button class="btn" id="langBtn">voice · hi-IN</button>
+  <button class="btn mic" id="micBtn" title="voice command">bolo</button>
+</div>
+<div class="bar" id="quickBar" style="margin-bottom:0"></div>
+</div>
+
+<footer>built with plain html + canvas · no dependencies · voice needs chrome + mic permission</footer>
+</div>
+
+<script>
+
+(function(){
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+function accRGB(){
+ const c=(getComputedStyle(document.documentElement).getPropertyValue('--kimi-color-accent')||'').trim();
+ if(c.charAt(0)==='#'){const h=c.slice(1);
+  if(h.length>=6)return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+ const m=c.match(/[\d.]+/g);
+ if(m&&m.length>=3)return [parseInt(m[0],10),parseInt(m[1],10),parseInt(m[2],10)];
+ return [59,130,246];}
+let RGB=accRGB();
+const rgba=a=>'rgba('+RGB[0]+','+RGB[1]+','+RGB[2]+','+Math.max(0,Math.min(1,a)).toFixed(3)+')';
+
+let yaw=0.6,pitch=-0.28,dist=4.6,lastAct=0,mesh='standard',sel=null,mode='orbit',vlang='hi-IN';
+let parts=[],mergeAnim=null;
+const NAMES={torus:'torus ring',mobius:'mobius strip',cube:'hypercube',ico:'iso core'};
+
+function mobius(R,w,nu,nv){const v=[],e=[];
+ for(let i=0;i<=nu;i++){const u=i/nu*2*Math.PI;
+  for(let j=0;j<=nv;j++){const t=(j/nv-0.5)*2*w,a=u/2;
+   v.push({x:(R+t*Math.cos(a))*Math.cos(u),y:t*Math.sin(a),z:(R+t*Math.cos(a))*Math.sin(u)})}}
+ for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const a=i*(nv+1)+j;e.push([a,a+nv+1],[a,a+1])}
+ for(let j=0;j<nv;j++)e.push([nu*(nv+1)+j,nv-j]);
+ return{v,e}}
+function torus(R,r,nu,nv){const v=[],e=[];
+ for(let i=0;i<nu;i++){const u=i/nu*2*Math.PI;
+  for(let j=0;j<nv;j++){const w=j/nv*2*Math.PI;
+   v.push({x:(R+r*Math.cos(w))*Math.cos(u),y:r*Math.sin(w),z:(R+r*Math.cos(w))*Math.sin(u)})}}
+ for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const a=i*nv+j;
+  e.push([a,i*nv+(j+1)%nv],[a,((i+1)%nu)*nv+j])}
+ return{v,e}}
+function cube(s){const v=[],e=[];
+ for(let i=0;i<8;i++)v.push({x:(i&1?1:-1)*s,y:(i&2?1:-1)*s,z:(i&4?1:-1)*s});
+ [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7],[0,7],[1,6],[2,5],[3,4]].forEach(p=>e.push(p));
+ return{v,e}}
+function ico(){const t=(1+Math.sqrt(5))/2;
+ const v0=[[0,1,t],[0,1,-t],[0,-1,t],[0,-1,-t],[1,t,0],[1,-t,0],[-1,t,0],[-1,-t,0],[t,0,1],[-t,0,1],[t,0,-1],[-t,0,-1]];
+ const v=v0.map(a=>({x:a[0]*0.55,y:a[1]*0.55,z:a[2]*0.55})),e=[];
+ for(let i=0;i<12;i++)for(let j=i+1;j<12;j++){
+  const d=Math.hypot(v[i].x-v[j].x,v[i].y-v[j].y,v[i].z-v[j].z);
+  if(d<1.15)e.push([i,j])}
+ return{v,e}}
+const BUILD={torus:function(){return torus(0.75,0.26,26,10)},mobius:function(){return mobius(0.8,0.3,44,5)},
+ cube:function(){return cube(0.55)},ico:function(){return ico()}};
+
+function addPart(type,pos){const g=BUILD[type]();
+ parts.push({type:type,name:NAMES[type],v:g.v,e:g.e,pos:pos||{x:0,y:0,z:0},s:1,
+  spin:0.004+Math.random()*0.004,rot:Math.random()*6,pulse:0});
+ renderChips();hudInfo()}
+function removePart(i){if(i<0||i>=parts.length||parts.length<=1)return false;
+ const nm=parts[i].name;parts.splice(i,1);
+ if(sel===i)sel=null;else if(sel>i)sel--;
+ renderChips();hudInfo();status(nm+' hata diya');return true}
+function reset(){parts=[];sel=null;mergeAnim=null;mesh='standard';hudInfo();
+ addPart('torus',{x:0,y:0,z:0});addPart('mobius',{x:-1.6,y:0.35,z:0});addPart('cube',{x:1.6,y:0.3,z:0});
+ status('scene dobara taiyaar · 3 parts load')}
+
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(1.5,window.devicePixelRatio||1);
+ const r=cv.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
+ cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0)}
+if(window.ResizeObserver){new ResizeObserver(resize).observe(cv)}
+resize();
+window.addEventListener('resize',resize);
+
+const Rx=function(p,x,y,z){return{x:x,y:y*Math.cos(p)-z*Math.sin(p),z:y*Math.sin(p)+z*Math.cos(p)}};
+const Ry=function(y,x,z){return{x:x*Math.cos(y)+z*Math.sin(y),z:-x*Math.sin(y)+z*Math.cos(y)}};
+const camRight=function(){return{x:Math.cos(yaw),y:0,z:-Math.sin(yaw)}};
+const camUp=function(){return{x:Math.sin(pitch)*Math.sin(yaw),y:Math.cos(pitch),z:Math.sin(pitch)*Math.cos(yaw)}};
+
+function proj(x,y,z,f,d){const p1=Rx(pitch,x,y,z),p2=Ry(yaw,p1.x,p1.z);
+ const s=f/(d+p2.z);return[W/2+p2.x*s,H/2-p1.y*s,p2.z]}
+
+let errShown=false;
+function frame(){
+ try{
+  if(performance.now()-lastAct>3000)yaw+=0.0025;
+  ctx.clearRect(0,0,W,H);
+  const f=(H/2)/Math.tan(0.42),d=dist;
+  const g=ctx.createRadialGradient(W/2,H*0.55,10,W/2,H*0.55,Math.max(W,H)*0.55);
+  g.addColorStop(0,rgba(0.13));g.addColorStop(1,rgba(0));
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.lineCap='round';
+  ctx.lineWidth=1;ctx.strokeStyle=rgba(0.5);
+  for(let i=-3;i<=3;i++){
+   const a=proj(i*0.5,-1.55,-3,f,d),b=proj(i*0.5,-1.55,3,f,d);
+   const c=proj(-3,-1.55,i*0.5,f,d),e2=proj(3,-1.55,i*0.5,f,d);
+   ctx.globalAlpha=i===0?0.30:0.10;
+   ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);
+   ctx.moveTo(c[0],c[1]);ctx.lineTo(e2[0],e2[1]);ctx.stroke()}
+  ctx.globalAlpha=1;
+  const all=[];
+  for(let pi=0;pi<parts.length;pi++){const p=parts[pi];
+   const rr=Math.cos(p.rot),ss=Math.sin(p.rot),sc=p.s*(1+0.09*(p.pulse||0));
+   const mp=p.pos,mg=mergeAnim&&mergeAnim.pi===pi?mergeAnim:null;
+   const tv=new Array(p.v.length);
+   for(let k=0;k<p.v.length;k++){const v=p.v[k];
+    let x=v.x*sc,y=v.y*sc,z=v.z*sc;
+    const x2=x*rr+z*ss,z2=-x*ss+z*rr;x=x2;z=z2;
+    if(mg){const kk=1-Math.pow(1-mg.t,3);
+     x+=(mg.to.x-mp.x)*kk;y+=(mg.to.y-mp.y)*kk;z+=(mg.to.z-mp.z)*kk}
+    tv[k]=proj(x,y,z,f,d)}
+   for(let k=0;k<p.e.length;k++){const ed=p.e[k],a=tv[ed[0]],b=tv[ed[1]];
+    if(a&&b)all.push({ax:a[0],ay:a[1],bx:b[0],by:b[1],z:(a[2]+b[2])/2,pi:pi})}}
+  all.sort(function(m,n){return n.z-m.z});
+  const lw=mesh==='titanium'?1.9:1.25;
+  for(let pass=0;pass<2;pass++){
+   for(let k=0;k<all.length;k++){const L=all[k];
+    const near=Math.max(-1.4,Math.min(1.4,L.z));
+    let alpha=0.9-((near+1.4)/2.8)*0.62;
+    if(L.pi===sel)alpha=Math.min(1,alpha+0.3);
+    if(pass===0){ctx.strokeStyle=rgba(alpha*0.22);ctx.lineWidth=lw+3.5}
+    else{ctx.strokeStyle=rgba(alpha);ctx.lineWidth=(L.pi===sel?lw+0.7:lw)}
+    ctx.beginPath();ctx.moveTo(L.ax,L.ay);ctx.lineTo(L.bx,L.by);ctx.stroke()}}
+  if(sel!=null&&parts[sel]){const p=parts[sel];
+   const rr=Math.cos(p.rot),ss=Math.sin(p.rot),sc=p.s*(1+0.09*(p.pulse||0));
+   ctx.fillStyle=rgba(0.95);
+   for(let k=0;k<p.v.length;k+=3){const v=p.v[k];
+    let x=v.x*sc,y=v.y*sc,z=v.z*sc;
+    const x2=x*rr+z*ss,z2=-x*ss+z*rr;x=x2;z=z2;
+    const q=proj(x+p.pos.x,y+p.pos.y,z+p.pos.z,f,d);
+    ctx.beginPath();ctx.arc(q[0],q[1],1.6,0,6.3);ctx.fill()}}
+  ctx.globalAlpha=1;
+  $('hudRot').innerHTML='yaw <b>'+((Math.round(yaw*57.3)%360+360)%360)+'°</b> · pitch <b>'+Math.round(pitch*57.3)+'°</b> · zoom <b>'+Math.round(4.6/dist*100)+'%</b>';
+  requestAnimationFrame(frame);
+ }catch(err){
+  if(!errShown){errShown=true;
+   ctx.fillStyle=rgba(0.9);ctx.font='13px sans-serif';
+   ctx.fillText('render error: '+err.message,12,24);}
+ }}
+
+function renderChips(){const bar=$('partsBar');bar.innerHTML='';
+ for(let i=0;i<parts.length;i++){(function(p,i){
+  const c=document.createElement('button');c.className='chip'+(i===sel?' sel':'');
+  c.innerHTML=p.name+'<span class="x">&#10005;</span>';
+  c.onclick=function(e){
+   if(e.target.classList.contains('x')){removePart(i);return}
+   sel=i;mode='move';$('modeBtn').textContent='mode: move';
+   renderChips();status(p.name+' selected · drag karke move karo')};
+  bar.appendChild(c)})(parts[i],i)}}
+function hudInfo(){$('hudInfo').innerHTML='parts <b>'+parts.length+'</b> · mesh <b>'+mesh+'</b>'}
+function status(t){$('hudStatus').textContent=t}
+
+$('modeBtn').onclick=function(){mode=mode==='orbit'?'move':'orbit';
+ $('modeBtn').textContent='mode: '+mode;
+ status(mode==='move'?'move mode · part select karo, phir drag':'orbit mode · drag se view ghumao')};
+$('snapBtn').onclick=function(){tryMerge(sel)};
+$('resetBtn').onclick=function(){reset()};
+
+function tryMerge(i){
+ if(i==null||i<0||!parts[i]){status('pehle part select karo, phir snap');return}
+ if(parts.length<2){status('sirf base bacha hai');return}
+ if(i===0){status('base layer pehle se anchored hai');return}
+ sel=i;
+ mergeAnim={pi:i,to:{x:parts[0].pos.x,y:parts[0].pos.y,z:parts[0].pos.z},t:0};
+ status('snap sequence · '+parts[i].name+' ko '+parts[0].name+' se jod raha hoon')}
+function tickMerge(dt){
+ if(!mergeAnim)return;mergeAnim.t+=dt/650;
+ if(mergeAnim.t>=1){const gone=parts.splice(mergeAnim.pi,1)[0];
+  parts[0].pulse=1;sel=null;mergeAnim=null;
+  renderChips();hudInfo();status(gone.name+' jud gaya · structural integrity 100%')}}
+let lastT=performance.now();
+(function loop(t){const dt=Math.min(50,t-lastT);lastT=t;tickMerge(dt);
+ for(let i=0;i<parts.length;i++){const p=parts[i];
+  p.rot+=p.spin*dt*0.06;if(p.pulse>0)p.pulse=Math.max(0,p.pulse-dt/900)}
+ requestAnimationFrame(loop)})(lastT);
+
+/* ---------- hinglish command engine ---------- */
+function idxOfType(t){for(let i=0;i<parts.length;i++)if(parts[i].type===t)return i;return -1}
+function findIdx(c){
+ if(/(mobius|möbius|patta|मोबियस)/.test(c))return idxOfType('mobius');
+ if(/(cube|क्यूब)/.test(c))return idxOfType('cube');
+ if(/(torus|ring|challa|chakkar|टोरस|टोरश)/.test(c))return idxOfType('torus');
+ if(/(iso|core|dil|कोर)/.test(c))return idxOfType('ico');
+ return -1}
+function findAdd(c){
+ if(/(mobius|möbius|patta|मोबियस)/.test(c))return 'mobius';
+ if(/(cube|क्यूब)/.test(c))return 'cube';
+ if(/(iso|core|dil|कोर)/.test(c))return 'ico';
+ if(/(torus|ring|challa|chakkar|टोरस|टोरश)/.test(c))return 'torus';
+ return null}
+function runCommand(raw){
+ const c=' '+raw.toLowerCase().replace(/[?!.,]/g,' ').replace(/\s+/g,' ').trim()+' ';
+ status('executing: '+raw);
+ if(/(reset|clear|saaf|साफ|shuru se|शुरू)/.test(c)){reset();return}
+ if(/(hatao|hata do|nikaal|nikaalo|udao|delete|हटाओ|हटा|हटाना|हटा दो)/.test(c)){
+  const i=findIdx(c);
+  if(i>=0){removePart(i);return}
+  if(parts.length>1){removePart(parts.length-1);return}
+  status('hatane ke liye kuch nahi bacha');return}
+ if(/(merge|snap|combine|jodo|jod do|jod |mila do|milao|जोड़ो|जोड़|जोड़ दो|मिलाओ|मिला)/.test(c)){
+  let i=findIdx(c);if(i<0)i=sel;
+  if(i!=null&&i>=0){tryMerge(i)}else status('kaunsa part jodna hai? naam bolo · jaise "mobius jod do"');
+  return}
+ if(/(rotate|ghuma|ghumao|spin|घुमाओ|घुमा|घुमाना|घुमा दो)/.test(c)){
+  const ax=/ z /.test(c)?'z':/ y /.test(c)?'y':'x';
+  for(let i=0;i<parts.length;i++)parts[i].spin*=3;
+  setTimeout(function(){for(let i=0;i<parts.length;i++)parts[i].spin/=3},1400);
+  status('assembly '+ax+'-axis pe ghuma di');return}
+ if(/(titanium|mesh|material|alloy|टाइटेनियम)/.test(c)){
+  mesh=mesh==='titanium'?'standard':'titanium';hudInfo();
+  status(mesh==='titanium'?'titanium alloy mesh laga di':'standard mesh wapas');return}
+ if(/(zoom|paas|pass|door|paas karo|दूर|पास|दूर क)/.test(c)){
+  const out=/(out|door|दूर|chota|छोटा)/.test(c);
+  if(out)dist=Math.min(9,dist*1.3);else dist=Math.max(2.4,dist*0.75);
+  status(out?'zoom out · '+Math.round(4.6/dist*100)+'%':'zoom in · '+Math.round(4.6/dist*100)+'%');return}
+ if(/(select|chuno|चुनो|पकड़ो|pakdo)/.test(c)){
+  const i=findIdx(c);
+  if(i>=0){sel=i;mode='move';$('modeBtn').textContent='mode: move';renderChips();
+   status(parts[i].name+' selected · drag karke move karo')}
+  else status('kaunsa part? naam bolo');
+  return}
+ if(/(banao|bana|bana do|banana|lao|daalo|daal do|add|create|बनाओ|बना|बनाना|बना दो|लाओ|डालो|डाल दो|नया)/.test(c)){
+  const t=findAdd(c)||'torus';
+  addPart(t,{x:(Math.random()-0.5)*2.6,y:0.3+Math.random()*0.5,z:(Math.random()-0.5)*1.5});
+  status(NAMES[t]+' taiyaar ho gaya');return}
+ status('samajh nahi aaya · try: "torus banao" · "cube ko ghumao" · "mobius jod do" · "zoom paas karo"')}
+window.__run=runCommand;
+window.__state=function(){return{parts:parts.length,mesh:mesh,dist:Math.round(dist*100)/100,sel:sel}};
+
+$('cmdIn').addEventListener('keydown',function(e){
+ if(e.key==='Enter'&&e.target.value.trim()){runCommand(e.target.value.trim());e.target.value=''}});
+const QUICK=['torus banao','cube ko ghumao','mobius jod do','zoom paas karo','titanium lagao','cube hatao'];
+for(let i=0;i<QUICK.length;i++){(function(q){
+ const b=document.createElement('button');b.className='chip';b.textContent=q;
+ b.onclick=function(){runCommand(q)};$('quickBar').appendChild(b)})(QUICK[i])}
+
+/* ---------- voice (hinglish) ---------- */
+let rec=null,listening=false;
+$('langBtn').onclick=function(){vlang=vlang==='hi-IN'?'en-US':'hi-IN';
+ $('langBtn').textContent='voice · '+vlang;status('voice language: '+vlang)};
+$('micBtn').onclick=function(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){status('is browser mein voice engine nahi hai · typed command use karo');return}
+ try{
+  if(!rec){rec=new SR();rec.interimResults=false;
+   rec.onresult=function(e){runCommand(e.results[0][0].transcript)};
+   rec.onend=function(){listening=false;$('micBtn').classList.remove('listening');$('micBtn').textContent='bolo'};
+   rec.onerror=function(){listening=false;$('micBtn').classList.remove('listening');status('voice input error · dobara try karo')}}
+  rec.lang=vlang;
+  if(!listening){rec.start();listening=true;$('micBtn').classList.add('listening');
+   $('micBtn').textContent='sun raha hoon…';status('voice channel khula · boliye')}
+  else rec.stop()
+ }catch(err){status('voice engine unavailable · typed command use karo')}};
+
+reset();
+requestAnimationFrame(frame);
+})();
+
+</script>
+</body>
+  </html>
+  
